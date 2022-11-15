@@ -16,7 +16,7 @@ if NOT "%1"=="Release" (set CommonCompilerFlags=%CommonCompilerFlags% /MTd /Od /
 set Defines=/DC8_WIN32=1 /DUNICODE=1 /D_UNICODE=1
 if NOT "%1"=="Release" set Defines=%Defines% /DC8_SLOW=1 /DC8_INTERNAL=1
 
-set CommonLinkerFlags= -incremental:no -opt:ref -LIBPATH:"%DXSDK_DIR%/Lib/x86" OLE32.LIB Shell32.lib Kernel32.lib Pathcch.lib
+set CommonLinkerFlags= -incremental:no -opt:ref -LIBPATH:"%DXSDK_DIR%/Lib/x86" Gdi32.lib User32.lib OLE32.LIB Shell32.lib Kernel32.lib Pathcch.lib
 set Includes=/I..\code /I"%WindowsSdkDir%Include\um" /I"%WindowsSdkDir%Include\shared"
 Set Sources=..\code\win32_c8.cpp
 set OutputFile=/Fec8.exe
@@ -32,7 +32,11 @@ del *.pdb > NUL 2> NUL
 del *.map > NUL 2> NUL
 del *.dll > NUL 2> NUL
 del *.exe > NUL 2> NUL
+del *.ico > NUL 2> NUL
 
-cl %OutputFile% %CommonCompilerFlags% %Defines% %Includes% /Fmc8.map %Sources% /link %CommonLinkerFlags%
+xcopy ..\trayicon.ico .\ /Y /Q
+
+echo "cl %OutputFile% %CommonCompilerFlags% %Defines% %Includes% /Fmc8.map %Sources% /link %CommonLinkerFlags%"
+cl %OutputFile% %CommonCompilerFlags% %Defines% %Includes% /Fmc8.map %Sources% /link%CommonLinkerFlags%
 popd
 endlocal
