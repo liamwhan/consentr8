@@ -1,0 +1,25 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${default}",
+                "${workspaceFolder}/code"
+            ],
+            "windowsSdkVersion": "10.0.19041.0",
+            "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/VC/Tools/MSVC/14.28.29910/bin/Hostx64/x64/cl.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "defines": [
+                "UNICODE=1",
+                "_UNICODE=1",
+                "C8_INTERNAL=1",
+                "C8_WIN32=1",
+                "false=0",
+                "true=1",
+                "__cplusplus"
+            ]
+        }
+    ],
+    "version": 4
+}
