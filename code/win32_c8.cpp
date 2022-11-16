@@ -1,7 +1,15 @@
 #include "win32_c8.h"
 
-static char HasKilledProcs = 0;
-static char IsZenMode = 0;
+
+static distracting_process_ids State = {};
+
+inline void ClearState(distracting_process_ids *state)
+{
+	state->SlackCount = 0;
+	state->TeamsCount = 0;
+	state->SlackProcessId = 0;
+	state->TeamsProcessId = 0;
+}
 
 // NOTE(liam): As this is the Default callback for Windows' message loop and it handles 
 LRESULT CALLBACK WindowClassCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
@@ -14,16 +22,18 @@ LRESULT CALLBACK WindowClassCallback(HWND Window, UINT Message, WPARAM WParam, L
 	{
 		case WM_TRAYICON:
 		{
-			if (!IsZenMode && (LParam == WM_LBUTTONDOWN))
+			if (!State.IsZenMode && (LParam == WM_LBUTTONDOWN))
 			{
-				IsZenMode = 1;
+				State.IsZenMode = 1;
+				wcscpy_s(TrayNotifyIconData.szTip, _countof(TrayNotifyIconData.szTip), L"Consentr8 - Zen Mode Activated");
 				UpdateTrayIcon(ZenIcon);
 				
 			}
-			else if (IsZenMode && (LParam == WM_LBUTTONDOWN))
+			else if (State.IsZenMode && (LParam == WM_LBUTTONDOWN))
 			{
-				IsZenMode = 0;
-				HasKilledProcs = 0;
+				State.IsZenMode = 0;
+				State.HasKilledProcs = 0;
+				wcscpy_s(TrayNotifyIconData.szTip, _countof(TrayNotifyIconData.szTip), L"Consentr8");
 				UpdateTrayIcon(BaseIcon);
 			}
 			else if (!QuitMessageBoxIsShowing && (LParam == WM_RBUTTONDOWN || LParam == WM_MBUTTONDOWN))
@@ -53,6 +63,45 @@ LRESULT CALLBACK WindowClassCallback(HWND Window, UINT Message, WPARAM WParam, L
 		}
 	}
 	return(Result);
+}
+
+
+void GetStateTeams(distracting_process_ids *state) 
+{
+ 	HANDLE SnapshotHandle = CreateToolhelp32Snapshot(TH32CS_SNAPALL, NULL);
+    PROCESSENTRY32 Entry;
+    Entry.dwSize = sizeof(Entry);
+    BOOL Result = Process32First(SnapshotHandle, &Entry);
+
+    while (Result)
+    {
+        if (wcscmp(Entry.szExeFile, L"Teams.exe") == 0)
+        {
+            state->TeamsCount++;
+			state->TeamsProcessId = Entry.th32ProcessID;
+        }
+        Result = Process32Next(SnapshotHandle, &Entry);
+    }
+    CloseHandle(SnapshotHandle);
+}
+
+void GetStateSlack(distracting_process_ids *state) 
+{
+ 	HANDLE SnapshotHandle = CreateToolhelp32Snapshot(TH32CS_SNAPALL, NULL);
+    PROCESSENTRY32 Entry;
+    Entry.dwSize = sizeof(Entry);
+    BOOL Result = Process32First(SnapshotHandle, &Entry);
+
+    while (Result)
+    {
+        if (wcscmp(Entry.szExeFile, L"Slack.exe") == 0)
+        {
+            state->SlackCount++;
+			state->SlackProcessId = Entry.th32ProcessID;
+        }
+        Result = Process32Next(SnapshotHandle, &Entry);
+    }
+    CloseHandle(SnapshotHandle);
 }
 
 void KillProc(WCHAR *exeName)
@@ -104,11 +153,11 @@ int UpdateTrayIcon(HICON Icon)
 
 void Concentrate()
 {
-	if (!IsZenMode) return;
-	if (HasKilledProcs) return;
+	if (!State.IsZenMode) return;
+	if (State.HasKilledProcs) return;
 	KillProc(L"Teams.exe");
 	KillProc(L"Slack.exe");
-	HasKilledProcs = 1;	
+	State.HasKilledProcs = 1;	
 }
 
 int CALLBACK WinMain(
@@ -118,6 +167,8 @@ int CALLBACK WinMain(
     int ShowWindowFlag)
 {
     Mutex = CreateMutex(NULL, FALSE, L"Consentr8");
+	State.HasKilledProcs = 0;
+	State.IsZenMode = 0;
 
     if (GetLastError() == ERROR_ALREADY_EXISTS)
     {
@@ -182,7 +233,7 @@ int CALLBACK WinMain(
 	TrayNotifyIconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 	TrayNotifyIconData.uCallbackMessage = WM_TRAYICON;
 
-	wcscpy_s(TrayNotifyIconData.szTip, _countof(TrayNotifyIconData.szTip), L"Consentr8 v1.0.0");
+	wcscpy_s(TrayNotifyIconData.szTip, _countof(TrayNotifyIconData.szTip), L"Consentr8");
 
     BaseIcon = LoadIcon(Instance, MAKEINTRESOURCE(IDI_ICON1));
     if (!BaseIcon)
@@ -208,7 +259,10 @@ int CALLBACK WinMain(
         {
             DispatchMessage(&SysTrayWindowMessage);
         }
-		Concentrate();
+		if (State.IsZenMode)
+		{
+			Concentrate();
+		}
 		Sleep(1000);
     }
 

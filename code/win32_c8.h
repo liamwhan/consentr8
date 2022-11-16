@@ -39,6 +39,22 @@ HANDLE Mutex;
 
 BOOL AppShouldRun = TRUE;
 
+typedef unsigned char uint8;
+typedef unsigned short uint16;
+typedef unsigned long uint32;
+
+struct distracting_process_ids
+{
+    uint8 TeamsCount;
+    uint8 SlackCount;
+
+    DWORD TeamsProcessId;
+    DWORD SlackProcessId;
+
+    uint8 IsZenMode;
+    uint8 HasKilledProcs;
+};
+
 // Forward decs
 void KillProc(WCHAR *exeName);
 LRESULT CALLBACK WindowClassCallback(_In_ HWND Window, _In_ UINT Message, _In_ WPARAM WParam, _In_ LPARAM LParam);
@@ -46,3 +62,6 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
 int UpdateTrayIcon(HICON Icon);
 int SetTrayIcon(HICON Icon);
 void Concentrate();
+void GetStateTeams(distracting_process_ids *state);
+void GetStateSlack(distracting_process_ids *state);
+

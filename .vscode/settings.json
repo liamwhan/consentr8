@@ -52,6 +52,7 @@
         }
         
     ],
-    "terminal.integrated.automationShell.windows": "cmd.exe"
+    "terminal.integrated.automationShell.windows": "cmd.exe",
+    "C_Cpp.errorSquiggles": "Disabled"
 
 }
