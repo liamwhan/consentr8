@@ -1,33 +1,10 @@
-#ifndef _UNICODE
-#define _UNICODE
-#endif
-#ifndef UNICODE
-#define UNICODE
-#endif
+#include "win32_c8.h"
 
-#include <Windows.h>
-#include <shellapi.h>
-#include <Psapi.h>
-#include <stdio.h>
-#include <process.h>
-#include <Tlhelp32.h>
-#include <stdlib.h>
+static char HasKilledProcs = 0;
+static char IsZenMode = 0;
 
-#define WM_TRAYICON (WM_USER + 1)
-
-NOTIFYICONDATA TrayNotifyIconData;
-// Used to enforce single instance
-HANDLE Mutex;
-
-BOOL AppShouldRun = TRUE;
-
-// Forward decs
-void KillProc(WCHAR *exeName);
-
-// The WindowProc (callback) for WinMain's WindowClass.
-// Basically the system tray does nothing except lets the user know that it's running.
-// If the user clicks the tray icon in any way it will ask if they want to exit the app.
-LRESULT CALLBACK WindowClassCallback(_In_ HWND Window, _In_ UINT Message, _In_ WPARAM WParam, _In_ LPARAM LParam)
+// NOTE(liam): As this is the Default callback for Windows' message loop and it handles 
+LRESULT CALLBACK WindowClassCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 {
 	LRESULT Result = 0;
 
@@ -37,13 +14,24 @@ LRESULT CALLBACK WindowClassCallback(_In_ HWND Window, _In_ UINT Message, _In_ W
 	{
 		case WM_TRAYICON:
 		{
-			if (!QuitMessageBoxIsShowing && (LParam == WM_LBUTTONDOWN || LParam == WM_RBUTTONDOWN || LParam == WM_MBUTTONDOWN))
+			if (!IsZenMode && (LParam == WM_LBUTTONDOWN))
+			{
+				IsZenMode = 1;
+				UpdateTrayIcon(ZenIcon);
+				
+			}
+			else if (IsZenMode && (LParam == WM_LBUTTONDOWN))
+			{
+				IsZenMode = 0;
+				HasKilledProcs = 0;
+				UpdateTrayIcon(BaseIcon);
+			}
+			else if (!QuitMessageBoxIsShowing && (LParam == WM_RBUTTONDOWN || LParam == WM_MBUTTONDOWN))
 			{
 				QuitMessageBoxIsShowing = TRUE;
 
-				if (MessageBoxW(Window, L"Quit Consentr8?", L"Are you sure?", MB_YESNO | MB_ICONQUESTION | MB_SYSTEMMODAL) == IDYES)
+				if (MessageBoxW(Window, L"Quit Consentr8?", L"Are you sure?", MB_YESNO | MB_ICONQUESTION | MB_SYSTEMMODAL | MB_TOPMOST | MB_SETFOREGROUND) == IDYES)
 				{
-					KillProc(L"Teams.exe");
 					Shell_NotifyIconW(NIM_DELETE, &TrayNotifyIconData);
 
 					AppShouldRun = FALSE;
@@ -90,8 +78,41 @@ void KillProc(WCHAR *exeName)
     CloseHandle(SnapshotHandle);
 }
 
+int SetTrayIcon(HICON Icon)
+{
+	TrayNotifyIconData.hIcon = Icon;
+    if (Shell_NotifyIconW(NIM_ADD, &TrayNotifyIconData) == FALSE)
+	{
+		MessageBox(NULL, L"Failed to register systray icon!", L"Consentr8 Error", MB_OK | MB_ICONERROR);
+		return(E_FAIL);
+	}
+
+	return 0;
+}
+
+int UpdateTrayIcon(HICON Icon)
+{
+	TrayNotifyIconData.hIcon = Icon;
+    if (Shell_NotifyIconW(NIM_MODIFY, &TrayNotifyIconData) == FALSE)
+	{
+		MessageBox(NULL, L"Failed to register systray icon!", L"Consentr8 Error", MB_OK | MB_ICONERROR);
+		return(E_FAIL);
+	}
+
+	return(0);
+}
+
+void Concentrate()
+{
+	if (!IsZenMode) return;
+	if (HasKilledProcs) return;
+	KillProc(L"Teams.exe");
+	KillProc(L"Slack.exe");
+	HasKilledProcs = 1;	
+}
+
 int CALLBACK WinMain(
-    HINSTANCE Instance,
+	HINSTANCE Instance,
     HINSTANCE PrevInstance,
     LPSTR CommandLine,
     int ShowWindowFlag)
@@ -103,6 +124,24 @@ int CALLBACK WinMain(
         MessageBox(NULL, L"An instance of Consentr8 us already running", L"Consentr8 Error", MB_OK | MB_ICONERROR);
         return(ERROR_ALREADY_EXISTS);
     }
+
+	if ((NtSuspendProcess = (_NtSuspendProcess)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtSuspendProcess")) == NULL)
+	{
+		MessageBox(NULL, L"Unable to locate the NtSuspendProcess procedure in the ntdll.dll module. This is an internal Windows function that Consentr8 needs, and it looks like Microsoft have removed it in your version of Windows. Unfortunately, Consentr8 is not yet supported on your system.", L"Consentr8 Error", MB_OK | MB_ICONERROR);
+		return(E_FAIL);
+	}
+
+	if ((NtResumeProcess = (_NtResumeProcess)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtResumeProcess")) == NULL)
+	{
+		MessageBox(NULL, L"Unable to locate the NtResumeProcess procedure in the ntdll.dll module. This is an internal Windows function that Consentr8 needs, and it looks like Microsoft have removed it in your version of Windows. Unfortunately, Consentr8 is not yet supported on your system.", L"Consentr8 Error", MB_OK | MB_ICONERROR);
+		return(E_FAIL);
+	}
+
+	if ((HungWindowFromGhostWindow = (_HungWindowFromGhostWindow)GetProcAddress(GetModuleHandleW(L"user32.dll"), "HungWindowFromGhostWindow")) == NULL)
+	{
+		MessageBox(NULL, L"Unable to locate the HungWindowFromGhostWindow procedure in the user32.dll module. This is an internal Windows function that Consentr8 needs, and it looks like Microsoft have removed it in your version of Windows. Unfortunately, Consentr8 is not yet supported on your system.", L"Consentr8 Error", MB_OK | MB_ICONERROR);
+		return(E_FAIL);
+	}
 
     WNDCLASS SysTrayWindowClass = { 0 };
 	SysTrayWindowClass.style         = CS_HREDRAW | CS_VREDRAW;
@@ -145,32 +184,32 @@ int CALLBACK WinMain(
 
 	wcscpy_s(TrayNotifyIconData.szTip, _countof(TrayNotifyIconData.szTip), L"Consentr8 v1.0.0");
 
-    HICON TrayIcon = (HICON)LoadImage(0, L"trayicon.ico", IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_LOADFROMFILE);
-    if (!TrayIcon)
+    BaseIcon = LoadIcon(Instance, MAKEINTRESOURCE(IDI_ICON1));
+    if (!BaseIcon)
     {
-        MessageBox(NULL, L"Failed to load systray icon resource!", L"Consentr8 Error", MB_OK | MB_ICONERROR);
+        MessageBox(NULL, L"Failed to load icon resource!", L"Consentr8 Error", MB_OK | MB_ICONERROR);
 		return(E_FAIL);
     }
 
-    TrayNotifyIconData.hIcon = TrayIcon;
-    if (Shell_NotifyIconW(NIM_ADD, &TrayNotifyIconData) == FALSE)
-	{
-		MessageBoxW(NULL, L"Failed to register systray icon!", L"Consentr8 Error", MB_OK | MB_ICONERROR);
+	ZenIcon = LoadIcon(Instance, MAKEINTRESOURCE(IDI_ICON2));
+	if (!ZenIcon)
+    {
+        MessageBox(NULL, L"Failed to load icon resource!", L"Consentr8 Error", MB_OK | MB_ICONERROR);
 		return(E_FAIL);
-	}
+    }
 
-    MSG        SysTrayWindowMessage                 = { 0 };
-	DWORD      PreviouslySuspendedProcessID			= 0;
-	HWND	   PreviouslySuspendedWnd				= 0;
-	wchar_t    PreviouslySuspendedProcessText[256]  = { 0 };
-	HANDLE     ProcessHandle                        = 0;
-
+	
+	SetTrayIcon(BaseIcon);
+    MSG SysTrayWindowMessage = { 0 };
+	
     while (AppShouldRun)
     {
         while (PeekMessage(&SysTrayWindowMessage, SystrayWindow, 0, 0, PM_REMOVE))
         {
             DispatchMessage(&SysTrayWindowMessage);
         }
+		Concentrate();
+		Sleep(1000);
     }
 
     return(S_OK);

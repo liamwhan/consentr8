@@ -1,7 +1,7 @@
 @echo off
 setlocal
 REM if "%WAV_VCVARS_LOCATION%"=="" set WAV_VCVARS_LOCATION="C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvarsall.bat"
-call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat" x64
+call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat" x64 > NUL 2> NUL
 
 set CommonCompilerFlags= /utf-8 /nologo /fp:fast /fp:except- /Gm- /GR- /EHa- /Oi /WX /W4 /wd4201 /wd4100 /wd4189 /wd4505 /wd4127 /FC
 
@@ -16,7 +16,7 @@ if NOT "%1"=="Release" (set CommonCompilerFlags=%CommonCompilerFlags% /MTd /Od /
 set Defines=/DC8_WIN32=1 /DUNICODE=1 /D_UNICODE=1
 if NOT "%1"=="Release" set Defines=%Defines% /DC8_SLOW=1 /DC8_INTERNAL=1
 
-set CommonLinkerFlags= -incremental:no -opt:ref -LIBPATH:"%DXSDK_DIR%/Lib/x86" Gdi32.lib User32.lib OLE32.LIB Shell32.lib Kernel32.lib Pathcch.lib
+set CommonLinkerFlags= -incremental:no -opt:ref -LIBPATH:"%DXSDK_DIR%/Lib/x86" "%cd%\Consentr8.res" Gdi32.lib User32.lib OLE32.LIB Shell32.lib Kernel32.lib Pathcch.lib
 set Includes=/I..\code /I"%WindowsSdkDir%Include\um" /I"%WindowsSdkDir%Include\shared"
 Set Sources=..\code\win32_c8.cpp
 set OutputFile=/Fec8.exe
@@ -27,16 +27,25 @@ IF NOT EXIST publish mkdir publish
 
 taskkill /im c8.exe /f /t > NUL 2> NUL
 
+
+
+REM Create icon resource file.
+rc /r /nologo Consentr8.rc
+
+if "%1"=="Release" (
+    pushd publish
+    CALL ..\clean.bat
+    popd
+)
+
+
 pushd build
-del *.pdb > NUL 2> NUL
-del *.map > NUL 2> NUL
-del *.dll > NUL 2> NUL
-del *.exe > NUL 2> NUL
-del *.ico > NUL 2> NUL
+CALL ..\clean.bat
 
-xcopy ..\trayicon.ico .\ /Y /Q
+xcopy ..\Consentr8.res .\ /Y /Q > NUL 2> NUL
 
-echo "cl %OutputFile% %CommonCompilerFlags% %Defines% %Includes% /Fmc8.map %Sources% /link %CommonLinkerFlags%"
+REM echo "cl %OutputFile% %CommonCompilerFlags% %Defines% %Includes% /Fmc8.map %Sources% /link %CommonLinkerFlags%"
 cl %OutputFile% %CommonCompilerFlags% %Defines% %Includes% /Fmc8.map %Sources% /link%CommonLinkerFlags%
 popd
+
 endlocal

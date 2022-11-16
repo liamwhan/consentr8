@@ -4,4 +4,7 @@
 **/*.dll
 **/*.exe
 **/*.map
+**/*.res
+build/
+publish/
 
